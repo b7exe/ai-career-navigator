@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Career Navigator{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        void:    '#0A0F1C',
+                        surface: '#111827',
+                        'cyan-glow': '#00F2FE',
+                        'cyan-deep': '#4FACFE'
+                    },
+                    fontFamily: {
+                        sans:    ['Inter', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    {% block head %}{% endblock %}
+</head>
+
+<!--
+    data-page is READ by cursor.js.
+    The orb only initialises when this attribute equals "home".
+    On every other route it is a complete no-op.
+-->
+<body
+    class="bg-void text-slate-200 antialiased min-h-screen flex flex-col relative"
+    data-page="{{ request.endpoint or '' }}"
+    {% if request.endpoint == 'roadmap' %}
+        data-roadmap-slug="{{ roadmap.slug if roadmap else '' }}"
+        data-total-topics="{{ roadmap.total_topics if roadmap else 0 }}"
+    {% endif %}
+>
+
+    <!--
+        Gradient orb — ONLY injected on the home route.
+        cursor.js also guards internally so this is double-safe.
+    -->
+    {% if request.endpoint == 'home' %}
+    <div id="cursor-orb" aria-hidden="true"></div>
+    {% endif %}
+
+    <!-- Loading overlay — shown during page transitions -->
+    <div id="loading-overlay" class="loading-overlay" aria-hidden="true">
+        <div class="loading-orb"></div>
+        <p class="loading-text">Loading…</p>
+    </div>
+
+    <!-- ── Navigation — no neon outline ──────────────────────── -->
+    <nav class="nav-clean">
+        <a href="{{ url_for('home') }}" class="nav-brand" aria-label="AI Career Navigator home">
+            <div class="nav-brand-dot"></div>
+            CareerNav<span style="color:#00F2FE;">.</span>
+        </a>
+
+        <div class="nav-links">
+            <a href="{{ url_for('home') }}"
+               class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">
+                Home
+            </a>
+            <a href="/careers"
+               class="nav-link {% if request.endpoint == 'careers' %}active{% endif %}">
+                Careers
+            </a>
+            <a href="{{ url_for('assessment') }}"
+               class="nav-link {% if request.endpoint == 'assessment' %}active{% endif %}">
+                Assessment
+            </a>
+            <a href="{{ url_for('dashboard') }}"
+               class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                Dashboard
+            </a>
+        </div>
+
+        <a href="{{ url_for('home') }}" class="nav-cta">Get Started</a>
+    </nav>
+
+    <!-- ── Page content ───────────────────────────────────────── -->
+    <main class="flex-grow pt-20 pb-12 z-10 relative">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="page-transition-wrapper">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </main>
+
+    <!-- ── Footer ─────────────────────────────────────────────── -->
+    <footer class="site-footer z-10 relative">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <div>
+                <p class="font-display font-bold text-lg text-white">
+                    CareerNav<span style="color:#00F2FE;">.</span>
+                </p>
+                <p class="text-xs text-slate-500 mt-1">AI-powered career intelligence. Built for the next era.</p>
+            </div>
+            <div class="flex gap-6 text-sm text-slate-500">
+                <a href="#" class="hover:text-slate-300 transition-colors">Privacy</a>
+                <a href="#" class="hover:text-slate-300 transition-colors">Terms</a>
+                <a href="#" class="hover:text-slate-300 transition-colors">Contact</a>
+            </div>
+            <p class="text-xs text-slate-600">&copy; 2026 AI Career Navigator</p>
+        </div>
+    </footer>
+
+    <!-- Scripts — load order matters -->
+    <script src="{{ url_for('static', filename='js/transitions.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/cursor.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/roadmap.js') }}"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
