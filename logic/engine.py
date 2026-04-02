@@ -9,9 +9,10 @@ Core logic for:
 import os
 import json
 import re
+import functools
 from difflib import SequenceMatcher
 
-from logic.market_data import ROLES, get_role, get_all_roles
+from logic.market_data import get_role, get_all_roles
 
 # ── Path to the developer-roadmap JSON files ───────────────────────────────
 _REPO_DATA = os.path.join(
@@ -38,18 +39,27 @@ def _keyword_score(user_words: list[str], role: dict) -> float:
 
     # Exact keyword match (highest weight)
     exact_hits = sum(1 for kw in keywords if kw in user_text)
-    exact_score = min(exact_hits / max(len(keywords), 1), 1.0)
+    exact_score = min(exact_hits / max(len(keywords) * 0.3, 1), 1.0)
 
     # Fuzzy token match (lower weight)
     fuzzy_hits = 0
     for word in user_words:
+        if len(word) < 3:
+            continue
         for kw in keywords:
+            if word in kw or kw in word:
+                fuzzy_hits += 1
+                break
             ratio = SequenceMatcher(None, word, kw).ratio()
-            if ratio > 0.82:
+            if ratio > 0.8:
                 fuzzy_hits += ratio
                 break
 
-    fuzzy_score = min(fuzzy_hits / max(len(keywords), 1), 1.0)
+    fuzzy_score = min(fuzzy_hits / max(len(keywords) * 0.3, 1), 1.0)
+
+    # If completely unrelated, drop it entirely so it doesn't pollute results
+    if exact_score == 0 and fuzzy_score == 0:
+        return 0.0
 
     # Market demand bonus (slightly prefer high-demand roles on close ties)
     demand_bonus = role["demand_score"] / 1000.0
@@ -62,16 +72,24 @@ def analyze_interests(raw_text: str, top_n: int = 5) -> list[dict]:
     Given a free-text interests string, return the top_n best-matching roles
     with their full market intelligence data, sorted by relevance score.
     """
+    def _hot_score(r):
+        # Extract max salary from string like '$140k - $220k'
+        sal_nums = re.findall(r'\d+', r.get("avg_salary", "0"))
+        max_sal = max([int(n) for n in sal_nums]) if sal_nums else 0
+        
+        # Composite score weighting demand, social signal, and salary
+        return (r.get("demand_score", 0) * 1.5) + r.get("social_signal", 0) + (max_sal * 0.5)
+
     if not raw_text or not raw_text.strip():
-        # Default: return top roles by demand score
-        return sorted(get_all_roles(), key=lambda r: r["demand_score"], reverse=True)[:top_n]
+        # Default: return hotly demanded / high salary roles
+        return sorted(get_all_roles(), key=_hot_score, reverse=True)[:top_n]
 
     user_words = _normalize(raw_text).split()
     if not user_words:
-        return sorted(get_all_roles(), key=lambda r: r["demand_score"], reverse=True)[:top_n]
+        return sorted(get_all_roles(), key=_hot_score, reverse=True)[:top_n]
 
     scored = []
-    for slug, role in ROLES.items():
+    for role in get_all_roles():
         score = _keyword_score(user_words, role)
         if score > 0:
             scored.append((score, role))
@@ -81,16 +99,7 @@ def analyze_interests(raw_text: str, top_n: int = 5) -> list[dict]:
 
     results = [r for _, r in scored[:top_n]]
 
-    # If fewer than 2 matches, backfill with top demand roles not already included
-    if len(results) < 2:
-        existing_slugs = {r["slug"] for r in results}
-        backfill = [
-            r for r in sorted(get_all_roles(), key=lambda x: x["demand_score"], reverse=True)
-            if r["slug"] not in existing_slugs
-        ]
-        results += backfill[: top_n - len(results)]
-
-    return results[:top_n]
+    return results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -107,6 +116,7 @@ _PHASE_COLORS = [
 ]
 
 
+@functools.lru_cache(maxsize=32)
 def _load_json(slug: str) -> dict | None:
     path = os.path.join(_REPO_DATA, slug, f"{slug}.json")
     if not os.path.exists(path):

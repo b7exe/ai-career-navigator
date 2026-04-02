@@ -1,8 +1,11 @@
 from flask import Flask, render_template, request, jsonify
 from logic.engine import analyze_interests, generate_roadmap
+from logic.extractor import init_background_job
 
 app = Flask(__name__)
 
+# Boot the 10-hour background data extraction pipeline
+init_background_job()
 
 @app.route("/")
 def home():
